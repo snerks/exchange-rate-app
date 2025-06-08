@@ -11,8 +11,8 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/ecb-xml/, ""),
         // Remove path so /ecb-xml -> /
-        configure: (proxy, options) => {
-          proxy.on("proxyReq", (proxyReq, req, res) => {
+        configure: (proxy, _) => {
+          proxy.on("proxyReq", (proxyReq, __, ___) => {
             proxyReq.path = "/stats/eurofxref/eurofxref-daily.xml";
           });
         },

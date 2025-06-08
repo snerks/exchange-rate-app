@@ -3,6 +3,18 @@ import { Container, Typography, Box, TextField, MenuItem, CircularProgress, Aler
 
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'JPY', 'AUD', 'CAD', 'CHF', 'CNY', 'INR'];
 
+const CURRENCY_NAMES: Record<string, string> = {
+    USD: 'US Dollar',
+    EUR: 'Euro',
+    GBP: 'British Pound',
+    JPY: 'Japanese Yen',
+    AUD: 'Australian Dollar',
+    CAD: 'Canadian Dollar',
+    CHF: 'Swiss Franc',
+    CNY: 'Chinese Yuan',
+    INR: 'Indian Rupee',
+};
+
 // Helper to parse ECB XML and extract rates
 function parseEcbRates(xml: string) {
     const parser = new DOMParser();
@@ -25,11 +37,13 @@ export default function ExchangeRate() {
     const [rate, setRate] = useState<number | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [allRates, setAllRates] = useState<Record<string, number> | null>(null);
 
     useEffect(() => {
+        setAllRates(null);
         if (base === target) {
+            // Don't return early; still fetch rates for the table
             setRate(1);
-            return;
         }
         setLoading(true);
         setError('');
@@ -41,21 +55,31 @@ export default function ExchangeRate() {
             })
             .then(xml => {
                 const rates = parseEcbRates(xml);
-                if (!(base in rates) || !(target in rates)) {
-                    setError('Currency not available in ECB feed.');
+                if (!(base in rates)) {
+                    setError('Base currency not available in ECB feed.');
                     setRate(null);
+                    setAllRates(null);
                 } else {
-                    // All rates are relative to EUR
-                    // To convert base -> target: (rate_target / rate_base)
                     const eurToBase = rates[base];
-                    const eurToTarget = rates[target];
-                    setRate(eurToTarget / eurToBase);
+                    const newRates: Record<string, number> = {};
+                    CURRENCIES.forEach(cur => {
+                        if (cur in rates) {
+                            newRates[cur] = rates[cur] / eurToBase;
+                        } else if (cur === base) {
+                            newRates[cur] = 1;
+                        } else {
+                            newRates[cur] = NaN;
+                        }
+                    });
+                    setAllRates(newRates);
+                    setRate(newRates[target]);
                 }
                 setLoading(false);
             })
             .catch(() => {
                 setError('Could not fetch exchange rate.');
                 setLoading(false);
+                setAllRates(null);
             });
     }, [base, target]);
 
@@ -99,10 +123,37 @@ export default function ExchangeRate() {
                 ) : error ? (
                     <Alert severity="error">{error}</Alert>
                 ) : rate !== null ? (
-                    <Typography variant="h5">
+                    <Typography variant="h5" sx={{ mb: 2 }}>
                         1 {base} = {rate} {target}
                     </Typography>
                 ) : null}
+                {allRates && (
+                    <Box sx={{ mt: 2, overflowX: 'auto' }}>
+                        <Typography variant="subtitle1" sx={{ mb: 1 }}>
+                            All {base} to Target Currencies
+                        </Typography>
+                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                            <thead>
+                                <tr>
+                                    <th style={{ borderBottom: '1px solid #ccc', padding: 4, textAlign: 'left' }}>Currency</th>
+                                    <th style={{ borderBottom: '1px solid #ccc', padding: 4, textAlign: 'left' }}>Name</th>
+                                    <th style={{ borderBottom: '1px solid #ccc', padding: 4, textAlign: 'right' }}>Value</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {CURRENCIES.filter(cur => cur !== base).map(cur => (
+                                    <tr key={cur}>
+                                        <td style={{ padding: 4 }}>{cur}</td>
+                                        <td style={{ padding: 4, textAlign: 'left' }}>{CURRENCY_NAMES[cur] || cur}</td>
+                                        <td style={{ padding: 4, textAlign: 'right' }}>
+                                            {isNaN(allRates[cur]) ? 'N/A' : allRates[cur].toFixed(6)}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </Box>
+                )}
             </Box>
         </Container>
     );
