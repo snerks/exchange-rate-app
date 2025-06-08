@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Container, Typography, Box, TextField, MenuItem, CircularProgress, Alert } from '@mui/material';
+import { createTheme, ThemeProvider, CssBaseline, Switch, FormControlLabel } from '@mui/material';
+import { useState as useReactState } from 'react';
 // Vite import for raw XML file
 import eurofxrefXml from './data/eurofxref-daily.xml?raw';
 
@@ -34,7 +36,7 @@ function parseEcbRates(xml: string) {
 }
 
 export default function ExchangeRate() {
-    const [base, setBase] = useState('USD');
+    const [base, setBase] = useState('GBP');
     const [target, setTarget] = useState('EUR');
     const [rate, setRate] = useState<number | null>(null);
     const [loading, setLoading] = useState(false);
@@ -42,6 +44,12 @@ export default function ExchangeRate() {
     const [allRates, setAllRates] = useState<Record<string, number> | null>(null);
     const [dataSource, setDataSource] = useState<'remote' | 'local' | null>(null);
     const [fetchErrorReason, setFetchErrorReason] = useState<string | null>(null);
+    const [mode, setMode] = useReactState<'light' | 'dark'>('light');
+    const theme = createTheme({
+        palette: {
+            mode,
+        },
+    });
 
     useEffect(() => {
         setAllRates(null);
@@ -132,94 +140,109 @@ export default function ExchangeRate() {
     }, [base, target]);
 
     return (
-        <Container maxWidth="sm" sx={{ mt: 6 }}>
-            <Box sx={{ mb: 4, textAlign: 'center' }}>
-                <Typography variant="h4" gutterBottom>
-                    Exchange Rate
-                </Typography>
-                <Typography variant="body1" color="text.secondary">
-                    Powered by European Central Bank (ECB, EUR as base)
-                </Typography>
-            </Box>
-            <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
-                <TextField
-                    select
-                    label="Base Currency"
-                    value={base}
-                    onChange={e => setBase(e.target.value)}
-                    fullWidth
-                >
-                    {CURRENCIES.map(cur => (
-                        <MenuItem key={cur} value={cur}>{cur}</MenuItem>
-                    ))}
-                </TextField>
-                <TextField
-                    select
-                    label="Target Currency"
-                    value={target}
-                    onChange={e => setTarget(e.target.value)}
-                    fullWidth
-                >
-                    {CURRENCIES.map(cur => (
-                        <MenuItem key={cur} value={cur}>{cur}</MenuItem>
-                    ))}
-                </TextField>
-            </Box>
-            <Box sx={{ mb: 1 }}>
-                {dataSource === 'remote' && (
-                    <Alert severity="success" sx={{ mb: 1 }}>
-                        Data fetched from European Central Bank (remote)
-                    </Alert>
-                )}
-                {dataSource === 'local' && (
-                    <Alert severity="warning" sx={{ mb: 1 }}>
-                        Fallback: Data loaded from local file
-                        {fetchErrorReason && (
-                            <Box component="span" sx={{ display: 'block', mt: 1, fontSize: '0.95em' }}>
-                                <b>Reason:</b> {fetchErrorReason}
-                            </Box>
-                        )}
-                    </Alert>
-                )}
-            </Box>
-            <Box sx={{ textAlign: 'center', minHeight: 60 }}>
-                {loading ? (
-                    <CircularProgress />
-                ) : error ? (
-                    <Alert severity="error">{error}</Alert>
-                ) : rate !== null ? (
-                    <Typography variant="h5" sx={{ mb: 2 }}>
-                        1 {base} = {rate} {target}
+        <ThemeProvider theme={theme}>
+            <CssBaseline />
+            <Container maxWidth="sm" sx={{ mt: 6 }}>
+                <Box sx={{ mb: 2, display: 'flex', justifyContent: 'flex-end' }}>
+                    <FormControlLabel
+                        control={
+                            <Switch
+                                checked={mode === 'dark'}
+                                onChange={() => setMode(mode === 'light' ? 'dark' : 'light')}
+                                color="primary"
+                            />
+                        }
+                        label={mode === 'dark' ? 'Dark Mode' : 'Light Mode'}
+                    />
+                </Box>
+                <Box sx={{ mb: 4, textAlign: 'center' }}>
+                    <Typography variant="h4" gutterBottom>
+                        Exchange Rate
                     </Typography>
-                ) : null}
-                {allRates && (
-                    <Box sx={{ mt: 2, overflowX: 'auto' }}>
-                        <Typography variant="subtitle1" sx={{ mb: 1 }}>
-                            All {base} to Target Currencies
+                    <Typography variant="body1" color="text.secondary">
+                        Powered by European Central Bank (ECB, EUR as base)
+                    </Typography>
+                </Box>
+                <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
+                    <TextField
+                        select
+                        label="Base Currency"
+                        value={base}
+                        onChange={e => setBase(e.target.value)}
+                        fullWidth
+                    >
+                        {CURRENCIES.map(cur => (
+                            <MenuItem key={cur} value={cur}>{cur}</MenuItem>
+                        ))}
+                    </TextField>
+                    <TextField
+                        select
+                        label="Target Currency"
+                        value={target}
+                        onChange={e => setTarget(e.target.value)}
+                        fullWidth
+                    >
+                        {CURRENCIES.map(cur => (
+                            <MenuItem key={cur} value={cur}>{cur}</MenuItem>
+                        ))}
+                    </TextField>
+                </Box>
+                <Box sx={{ mb: 1 }}>
+                    {dataSource === 'remote' && (
+                        <Alert severity="success" sx={{ mb: 1 }}>
+                            Data fetched from European Central Bank (remote)
+                        </Alert>
+                    )}
+                    {dataSource === 'local' && (
+                        <Alert severity="warning" sx={{ mb: 1 }}>
+                            Fallback: Data loaded from local file
+                            {fetchErrorReason && (
+                                <Box component="span" sx={{ display: 'block', mt: 1, fontSize: '0.95em' }}>
+                                    <b>Reason:</b> {fetchErrorReason}
+                                </Box>
+                            )}
+                        </Alert>
+                    )}
+                </Box>
+                <Box sx={{ textAlign: 'center', minHeight: 60 }}>
+                    {loading ? (
+                        <CircularProgress />
+                    ) : error ? (
+                        <Alert severity="error">{error}</Alert>
+                    ) : rate !== null ? (
+                        <Typography variant="h5" sx={{ mb: 2 }}>
+                            1 {base} = {rate} {target}
                         </Typography>
-                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                            <thead>
-                                <tr>
-                                    <th style={{ borderBottom: '1px solid #ccc', padding: 4, textAlign: 'left' }}>Currency</th>
-                                    <th style={{ borderBottom: '1px solid #ccc', padding: 4, textAlign: 'left' }}>Name</th>
-                                    <th style={{ borderBottom: '1px solid #ccc', padding: 4, textAlign: 'right' }}>Value</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {CURRENCIES.filter(cur => cur !== base).map(cur => (
-                                    <tr key={cur}>
-                                        <td style={{ padding: 4 }}>{cur}</td>
-                                        <td style={{ padding: 4, textAlign: 'left' }}>{CURRENCY_NAMES[cur] || cur}</td>
-                                        <td style={{ padding: 4, textAlign: 'right' }}>
-                                            {isNaN(allRates[cur]) ? 'N/A' : allRates[cur].toFixed(6)}
-                                        </td>
+                    ) : null}
+                    {allRates && (
+                        <Box sx={{ mt: 2, overflowX: 'auto' }}>
+                            <Typography variant="subtitle1" sx={{ mb: 1 }}>
+                                All {base} to Target Currencies
+                            </Typography>
+                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                <thead>
+                                    <tr>
+                                        <th style={{ borderBottom: '1px solid #ccc', padding: 4, textAlign: 'left' }}>Currency</th>
+                                        <th style={{ borderBottom: '1px solid #ccc', padding: 4, textAlign: 'left' }}>Name</th>
+                                        <th style={{ borderBottom: '1px solid #ccc', padding: 4, textAlign: 'right' }}>Value</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </Box>
-                )}
-            </Box>
-        </Container>
+                                </thead>
+                                <tbody>
+                                    {CURRENCIES.filter(cur => cur !== base).map(cur => (
+                                        <tr key={cur}>
+                                            <td style={{ padding: 4 }}>{cur}</td>
+                                            <td style={{ padding: 4, textAlign: 'left' }}>{CURRENCY_NAMES[cur] || cur}</td>
+                                            <td style={{ padding: 4, textAlign: 'right' }}>
+                                                {isNaN(allRates[cur]) ? 'N/A' : allRates[cur].toFixed(6)}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </Box>
+                    )}
+                </Box>
+            </Container>
+        </ThemeProvider>
     );
 }
