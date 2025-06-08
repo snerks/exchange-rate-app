@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Container, Typography, Box, TextField, MenuItem, CircularProgress, Alert } from '@mui/material';
+// Vite import for raw XML file
+import eurofxrefXml from './data/eurofxref-daily.xml?raw';
 
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'JPY', 'AUD', 'CAD', 'CHF', 'CNY', 'INR'];
 
@@ -38,48 +40,83 @@ export default function ExchangeRate() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [allRates, setAllRates] = useState<Record<string, number> | null>(null);
+    const [dataSource, setDataSource] = useState<'remote' | 'local' | null>(null);
 
     useEffect(() => {
         setAllRates(null);
-        if (base === target) {
-            // Don't return early; still fetch rates for the table
-            setRate(1);
-        }
-        setLoading(true);
-        setError('');
-        // Use Vite dev server proxy for ECB XML feed
-        fetch('/ecb-xml')
-            .then(res => {
-                if (!res.ok) throw new Error('Failed to fetch');
-                return res.text();
-            })
-            .then(xml => {
-                const rates = parseEcbRates(xml);
-                if (!(base in rates)) {
-                    setError('Base currency not available in ECB feed.');
+        setDataSource(null);
+        const isValidEcbXml = (xml: string) => {
+            // Basic check: must contain <Cube currency= and <Cube time= (ECB format)
+            return (
+                typeof xml === 'string' &&
+                xml.includes('<Cube') &&
+                xml.includes('currency=') &&
+                xml.includes('rate=') &&
+                xml.includes('time=')
+            );
+        };
+        const handleRates = (xml: string, isFallback = false) => {
+            if (!isValidEcbXml(xml)) {
+                if (!isFallback && eurofxrefXml) {
+                    setDataSource('local');
+                    handleRates(eurofxrefXml, true);
+                    return;
+                } else {
+                    setError('Exchange rate data is not in the expected ECB XML format.');
                     setRate(null);
                     setAllRates(null);
-                } else {
-                    const eurToBase = rates[base];
-                    const newRates: Record<string, number> = {};
-                    CURRENCIES.forEach(cur => {
-                        if (cur in rates) {
-                            newRates[cur] = rates[cur] / eurToBase;
-                        } else if (cur === base) {
-                            newRates[cur] = 1;
-                        } else {
-                            newRates[cur] = NaN;
-                        }
-                    });
-                    setAllRates(newRates);
-                    setRate(newRates[target]);
+                    setLoading(false);
+                    setDataSource(null);
+                    return;
                 }
-                setLoading(false);
-            })
-            .catch(() => {
-                setError('Could not fetch exchange rate.');
-                setLoading(false);
+            }
+            if (isFallback) {
+                setDataSource('local');
+            } else {
+                setDataSource('remote');
+            }
+            const rates = parseEcbRates(xml);
+            if (!(base in rates)) {
+                setError('Base currency not available in ECB feed.');
+                setRate(null);
                 setAllRates(null);
+            } else {
+                const eurToBase = rates[base];
+                const newRates: Record<string, number> = {};
+                CURRENCIES.forEach(cur => {
+                    if (cur in rates) {
+                        newRates[cur] = rates[cur] / eurToBase;
+                    } else if (cur === base) {
+                        newRates[cur] = 1;
+                    } else {
+                        newRates[cur] = NaN;
+                    }
+                });
+                setAllRates(newRates);
+                setRate(newRates[target]);
+            }
+            setLoading(false);
+        };
+        setLoading(true);
+        setError('');
+        fetch('/ecb-xml')
+            .then(async res => {
+                if (!res.ok) throw new Error('Failed to fetch');
+                const resText = await res.text();
+                return resText;
+            })
+            .then(xml => handleRates(xml, false))
+            .catch(() => {
+                // Fallback to imported XML data
+                if (eurofxrefXml) {
+                    setDataSource('local');
+                    handleRates(eurofxrefXml, true);
+                } else {
+                    setError('Could not fetch exchange rate from ECB or local file.');
+                    setLoading(false);
+                    setAllRates(null);
+                    setDataSource(null);
+                }
             });
     }, [base, target]);
 
@@ -116,6 +153,18 @@ export default function ExchangeRate() {
                         <MenuItem key={cur} value={cur}>{cur}</MenuItem>
                     ))}
                 </TextField>
+            </Box>
+            <Box sx={{ mb: 1 }}>
+                {dataSource === 'remote' && (
+                    <Alert severity="success" sx={{ mb: 1 }}>
+                        Data fetched from European Central Bank (remote)
+                    </Alert>
+                )}
+                {dataSource === 'local' && (
+                    <Alert severity="warning" sx={{ mb: 1 }}>
+                        Fallback: Data loaded from local file
+                    </Alert>
+                )}
             </Box>
             <Box sx={{ textAlign: 'center', minHeight: 60 }}>
                 {loading ? (
