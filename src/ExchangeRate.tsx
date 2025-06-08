@@ -41,10 +41,12 @@ export default function ExchangeRate() {
     const [error, setError] = useState('');
     const [allRates, setAllRates] = useState<Record<string, number> | null>(null);
     const [dataSource, setDataSource] = useState<'remote' | 'local' | null>(null);
+    const [fetchErrorReason, setFetchErrorReason] = useState<string | null>(null);
 
     useEffect(() => {
         setAllRates(null);
         setDataSource(null);
+        setFetchErrorReason(null);
         const isValidEcbXml = (xml: string) => {
             // Basic check: must contain <Cube currency= and <Cube time= (ECB format)
             return (
@@ -55,10 +57,11 @@ export default function ExchangeRate() {
                 xml.includes('time=')
             );
         };
-        const handleRates = (xml: string, isFallback = false) => {
+        const handleRates = (xml: string, isFallback = false, failReason?: string) => {
             if (!isValidEcbXml(xml)) {
                 if (!isFallback && eurofxrefXml) {
                     setDataSource('local');
+                    setFetchErrorReason(failReason || 'Remote data was not valid ECB XML.');
                     handleRates(eurofxrefXml, true);
                     return;
                 } else {
@@ -67,6 +70,7 @@ export default function ExchangeRate() {
                     setAllRates(null);
                     setLoading(false);
                     setDataSource(null);
+                    setFetchErrorReason(failReason || 'Remote data was not valid ECB XML.');
                     return;
                 }
             }
@@ -101,16 +105,23 @@ export default function ExchangeRate() {
         setError('');
         fetch('/ecb-xml')
             .then(async res => {
-                if (!res.ok) throw new Error('Failed to fetch');
+                if (!res.ok) {
+                    setFetchErrorReason(`Remote fetch failed: HTTP ${res.status} ${res.statusText}`);
+                    throw new Error('Failed to fetch');
+                }
+                const contentType = res.headers.get('content-type') || '';
                 const resText = await res.text();
+                if (!contentType.includes('xml') && !resText.trim().startsWith('<?xml')) {
+                    setFetchErrorReason('Remote fetch did not return XML.');
+                }
                 return resText;
             })
-            .then(xml => handleRates(xml, false))
+            .then(xml => handleRates(xml, false, fetchErrorReason || undefined))
             .catch(() => {
                 // Fallback to imported XML data
                 if (eurofxrefXml) {
                     setDataSource('local');
-                    handleRates(eurofxrefXml, true);
+                    handleRates(eurofxrefXml, true, fetchErrorReason || undefined);
                 } else {
                     setError('Could not fetch exchange rate from ECB or local file.');
                     setLoading(false);
@@ -163,6 +174,11 @@ export default function ExchangeRate() {
                 {dataSource === 'local' && (
                     <Alert severity="warning" sx={{ mb: 1 }}>
                         Fallback: Data loaded from local file
+                        {fetchErrorReason && (
+                            <Box component="span" sx={{ display: 'block', mt: 1, fontSize: '0.95em' }}>
+                                <b>Reason:</b> {fetchErrorReason}
+                            </Box>
+                        )}
                     </Alert>
                 )}
             </Box>
