@@ -142,7 +142,7 @@ export default function ExchangeRate() {
     return (
         <ThemeProvider theme={theme}>
             <CssBaseline />
-            <Container maxWidth="sm" sx={{ mt: 6 }}>
+            <Container maxWidth="xs" sx={{ mt: 2, px: 0.5 }}>
                 <Box sx={{ mb: 2, display: 'flex', justifyContent: 'flex-end' }}>
                     <FormControlLabel
                         control={
@@ -163,13 +163,14 @@ export default function ExchangeRate() {
                         Powered by European Central Bank (ECB, EUR as base)
                     </Typography>
                 </Box>
-                <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
+                <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2, mb: 3 }}>
                     <TextField
                         select
                         label="Base Currency"
                         value={base}
                         onChange={e => setBase(e.target.value)}
                         fullWidth
+                        sx={{ mb: { xs: 2, sm: 0 } }}
                     >
                         {CURRENCIES.map(cur => (
                             <MenuItem key={cur} value={cur}>{cur}</MenuItem>
@@ -211,7 +212,13 @@ export default function ExchangeRate() {
                         <Alert severity="error">{error}</Alert>
                     ) : rate !== null ? (
                         <Typography variant="h5" sx={{ mb: 2 }}>
-                            1 {base} = {rate} {target}
+                            {(() => {
+                                let decimals = 6;
+                                if (window.matchMedia && window.matchMedia('(max-width:600px)').matches) {
+                                    decimals = 4;
+                                }
+                                return `1 ${base} = ${rate.toFixed(decimals)} ${target}`;
+                            })()}
                         </Typography>
                     ) : null}
                     {allRates && (
@@ -219,7 +226,7 @@ export default function ExchangeRate() {
                             <Typography variant="subtitle1" sx={{ mb: 1 }}>
                                 All {base} to Target Currencies
                             </Typography>
-                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                            <table style={{ width: '100%', minWidth: 320, borderCollapse: 'collapse', fontSize: '0.95em' }}>
                                 <thead>
                                     <tr>
                                         <th style={{ borderBottom: '1px solid #ccc', padding: 4, textAlign: 'left' }}>Currency</th>
@@ -228,15 +235,23 @@ export default function ExchangeRate() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {CURRENCIES.filter(cur => cur !== base).map(cur => (
-                                        <tr key={cur}>
-                                            <td style={{ padding: 4 }}>{cur}</td>
-                                            <td style={{ padding: 4, textAlign: 'left' }}>{CURRENCY_NAMES[cur] || cur}</td>
-                                            <td style={{ padding: 4, textAlign: 'right' }}>
-                                                {isNaN(allRates[cur]) ? 'N/A' : allRates[cur].toFixed(6)}
-                                            </td>
-                                        </tr>
-                                    ))}
+                                    {CURRENCIES.filter(cur => cur !== base).map(cur => {
+                                        const isTarget = cur === target;
+                                        // Use 4 decimals for target currency on mobile, 6 otherwise
+                                        let decimals = 6;
+                                        if (isTarget && window.matchMedia && window.matchMedia('(max-width:600px)').matches) {
+                                            decimals = 4;
+                                        }
+                                        return (
+                                            <tr key={cur}>
+                                                <td style={{ padding: 4 }}>{cur}</td>
+                                                <td style={{ padding: 4, textAlign: 'left' }}>{CURRENCY_NAMES[cur] || cur}</td>
+                                                <td style={{ padding: 4, textAlign: 'right' }}>
+                                                    {isNaN(allRates[cur]) ? 'N/A' : allRates[cur].toFixed(decimals)}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </Box>
